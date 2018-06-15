@@ -3,4 +3,4 @@ Guide to start enforcing G Suite third-party apps (without breaking everything).
 
 Documentation is hosted in the [GitHub Wiki]
 
-[GitHub Wiki]: https://github.com/slackhq/gsuite-oauth-third-party-app-report
+[GitHub Wiki]: https://github.com/slackhq/gsuite-oauth-third-party-app-report/wiki
