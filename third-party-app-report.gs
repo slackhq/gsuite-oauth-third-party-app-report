@@ -1,5 +1,3 @@
-var DOMAIN = 'FILL-ME-IN';
-
 var HIGH_RISK_ACCESS = [
     "https://mail.google.com",
     "https://www.googleapis.com/auth/gmail.compose",
@@ -49,12 +47,12 @@ var HIGH_RISK_ACCESS = [
     "https://www.googleapis.com/auth/admin.reports.usage.readonly"
 ];
 
-//Get all users within "DOMAIN"
+//Get all users. Specify 'domain' to filter search to one domain  
 function listAllUsers(cb) {
     var pageToken, page;
     do {
         page = AdminDirectory.Users.list({
-            domain: DOMAIN,
+            domain: '',
             orderBy: 'givenName',
             maxResults: 500,
             pageToken: pageToken
@@ -80,9 +78,11 @@ function step1() {
     var tokens = []
     tokens.push([
         'primaryEmail',
-        'displayText',
         'clientId',
+        'displayText',
         'anonymous',
+        'nativeApp',
+        'userKey',
         'scopes'
     ]);
 
@@ -100,10 +100,12 @@ function step1() {
                     if (tok.nativeApp == false) {
                         tokens.push([
                             user.primaryEmail,
-                            tok.displayText,
                             tok.clientId,
+                            tok.displayText,
                             tok.anonymous,
-                            tok.scopes.join('\n'),
+                            tok.nativeApp,
+                            tok.userKey,
+                            tok.scopes.join(' '),
                         ]);
                     }
                 }
@@ -114,9 +116,9 @@ function step1() {
     });
 
     var ss = SpreadsheetApp.getActiveSpreadsheet();
-    var sheet = ss.getSheetByName("Users")
+    var sheet = ss.getSheetByName("OAuth Tokens")
     if (sheet == null) {
-        sheet = ss.insertSheet("Users");
+        sheet = ss.insertSheet("OAuth Tokens");
     } else {
         sheet.clear();
     }
@@ -138,11 +140,14 @@ function step2() {
     ])
 
     var ss = SpreadsheetApp.getActiveSpreadsheet();
-    var sheet = ss.getSheetByName("Users")
-    if (sheet == null) {
-        Logger.log('Did not find Users tab. First run function "step1"')
+    var sheetName = ss.getSheets()[0].getSheetName();
+    var sheet = ss.getSheetByName(sheetName);
+  
+    if (sheet == null || sheetName == 'Sheet1') {
+        Logger.log('Did not find OAuth Tokens tab. Please run function "step1" or GAM in order to generate the user tokens')
         return;
     }
+  
     var range = sheet.getDataRange();
     var tokens = range.getValues();
     tokens.shift(); //Remove header
@@ -150,17 +155,18 @@ function step2() {
     //Get counts of each token. Format [clientId = count]
     Logger.log('Counting tokens...');
     var tokenInstallCount = tokens.reduce(function(sums, entry) {
-        sums[entry[2]] = (sums[entry[2]] || 0) + 1;
+      if(entry[4] == false){
+        sums[entry[1]] = (sums[entry[1]] || 0) + 1;
+      }
         return sums;
     }, {});
-
 
     Logger.log('Retrieving information associated with clientId...');
     for (tokenRow in tokenInstallCount) {
         //Retrieve information associated with clientId
         var token = [];
         for (var i = 0; i < tokens.length; i++) {
-            if (tokens[i][2] == tokenRow) {
+            if (tokens[i][1] == tokenRow) {
                 token = tokens[i];
                 break;
             }
@@ -171,9 +177,8 @@ function step2() {
         }
         //Check if scopes appear in HIGH_RISK_ACCESS
         var match = false;
-        oauth_scopes = token[4].split('\n');
+        oauth_scopes = token[6].split(' ');
         if (HIGH_RISK_ACCESS.some(function(element) {
-                //Logger.log(token);
                 return oauth_scopes.indexOf(element) >= 0;
             })) {
             match = true;
@@ -181,10 +186,10 @@ function step2() {
 
         countsRows.push([
             tokenInstallCount[tokenRow],
-            token[1],
             token[2],
+            token[1],
             match,
-            token[4]
+            token[6]
         ])
     }
 
